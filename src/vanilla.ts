@@ -123,38 +123,41 @@ const createHandlerDefault = <T extends object>(
   addPropListener: (prop: string | symbol, propValue: unknown) => void,
   removePropListener: (prop: string | symbol) => void,
   notifyUpdate: (op: Op | undefined) => void,
-): ProxyHandler<T> => ({
-  deleteProperty(target: T, prop: string | symbol) {
-    const prevValue = Reflect.get(target, prop)
-    removePropListener(prop)
-    const deleted = Reflect.deleteProperty(target, prop)
-    if (deleted) {
-      notifyUpdate(createOp?.('delete', prop, prevValue))
-    }
-    return deleted
-  },
-  set(target: T, prop: string | symbol, value: any, receiver: object) {
-    const hasPrevValue = !isInitializing() && Reflect.has(target, prop)
-    const prevValue = Reflect.get(target, prop, receiver)
-    if (
-      hasPrevValue &&
-      (objectIs(prevValue, value) ||
-        (proxyCache.has(value) && objectIs(prevValue, proxyCache.get(value))))
-    ) {
+): ProxyHandler<T> => {
+  const createOpHandle = createOp
+  return {
+    deleteProperty(target: T, prop: string | symbol) {
+      const prevValue = Reflect.get(target, prop)
+      removePropListener(prop)
+      const deleted = Reflect.deleteProperty(target, prop)
+      if (deleted) {
+        notifyUpdate(createOpHandle?.('delete', prop, prevValue))
+      }
+      return deleted
+    },
+    set(target: T, prop: string | symbol, value: any, receiver: object) {
+      const hasPrevValue = !isInitializing() && Reflect.has(target, prop)
+      const prevValue = Reflect.get(target, prop, receiver)
+      if (
+        hasPrevValue &&
+        (objectIs(prevValue, value) ||
+          (proxyCache.has(value) && objectIs(prevValue, proxyCache.get(value))))
+      ) {
+        return true
+      }
+      removePropListener(prop)
+      if (isObject(value)) {
+        value = getUntracked(value) || value
+      }
+      const nextValue =
+        !proxyStateMap.has(value) && canProxy(value) ? proxy(value) : value
+      addPropListener(prop, nextValue)
+      Reflect.set(target, prop, nextValue, receiver)
+      notifyUpdate(createOpHandle?.('set', prop, value, prevValue))
       return true
-    }
-    removePropListener(prop)
-    if (isObject(value)) {
-      value = getUntracked(value) || value
-    }
-    const nextValue =
-      !proxyStateMap.has(value) && canProxy(value) ? proxy(value) : value
-    addPropListener(prop, nextValue)
-    Reflect.set(target, prop, nextValue, receiver)
-    notifyUpdate(createOp?.('set', prop, value, prevValue))
-    return true
-  },
-})
+    },
+  }
+}
 
 const createOpDefault = (
   type: 'set' | 'delete',

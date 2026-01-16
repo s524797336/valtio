@@ -266,3 +266,48 @@ describe('subscribe with op', () => {
     expect(handler).lastCalledWith([['delete', ['nested', 'count'], 1]])
   })
 })
+
+describe('subscribe to a specific proxy that has op enabled', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('obj1 should notify ops and obj2 not', async () => {
+    unstable_enableOp(true)
+    const obj1 = proxy<{ count1: number; count2?: number }>({
+      count1: 0,
+      count2: 0,
+    })
+    unstable_enableOp(false)
+    const obj2 = proxy<{ count1: number; count2?: number }>({
+      count1: 0,
+      count2: 0,
+    })
+    const handler1 = vi.fn()
+
+    subscribe(obj1, handler1)
+
+    obj1.count1 += 1
+    obj1.count2 = 2
+
+    const handler2 = vi.fn()
+
+    subscribe(obj2, handler2)
+
+    obj2.count1 += 1
+    obj2.count2 = 2
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(handler1).toBeCalledTimes(1)
+    expect(handler1).lastCalledWith([
+      ['set', ['count1'], 1, 0],
+      ['set', ['count2'], 2, 0],
+    ])
+    expect(handler2).toBeCalledTimes(1)
+    expect(handler2).lastCalledWith([])
+  })
+})
