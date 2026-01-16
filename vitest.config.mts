@@ -20,7 +20,7 @@ export default defineConfig({
       reportsDirectory: './coverage/',
       provider: 'v8',
     },
-    environment: 'jsdom',
+    environment: 'happy-dom',
     dir: 'tests',
     reporters: process.env.GITHUB_ACTIONS
       ? ['default', 'github-actions']
